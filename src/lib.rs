@@ -117,6 +117,12 @@ pub fn logger_ui(ui: &mut egui::Ui) {
     }
 }
 
+/// Clears the logger UI
+/// has to be called after [`init()`];
+pub fn clear_ui() {
+    try_mut_log(Vec::clear);
+}
+
 /**
 This returns the Log builder with default values.
 [Read more](`crate::Builder`)
