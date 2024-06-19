@@ -77,6 +77,11 @@ impl Builder {
             ui_level_filter,
         }
     }
+
+    /// Builds and sets the logger as the global logger.
+    pub fn init(self) -> Result<(), log::SetLoggerError> {
+        log::set_boxed_logger(Box::new(self.build()))
+    }
 }
 
 impl Default for Builder {
