@@ -157,7 +157,12 @@ pub fn ui(ui: &mut egui::Ui) {
 }
 
 /// Retrieve logger contents with ASNI escape codes removed.
-pub fn contents(level_filter: log::LevelFilter) -> String {
+pub fn contents() -> String {
+    contents_filter(log::LevelFilter::Trace)
+}
+
+/// Retrieve logger contents with ASNI escape codes removed while applying a log level limit filter.
+pub fn contents_filter(level_filter: log::LevelFilter) -> String {
     let mut parser = anstyle_parse::Parser::<anstyle_parse::Utf8Parser>::new();
     let mut performer = AnstyleAccumulator::default();
     log_filter_process(level_filter, |_, line| {
