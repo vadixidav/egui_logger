@@ -37,6 +37,31 @@ fn log_filter_process(level_filter: LevelFilter, mut f: impl FnMut(log::Level, &
     logs_processed
 }
 
+struct AnstylePerformer<'a> {
+    ui: &'a mut egui::Ui,
+    text: String,
+    color: Color32,
+}
+
+impl<'a> AnstylePerformer<'a> {
+    fn flush(&mut self) {
+        if !self.text.is_empty() {
+            self.ui.colored_label(self.color, &self.text);
+            self.text.clear();
+        }
+    }
+}
+
+impl<'a> anstyle_parse::Perform for AnstylePerformer<'a> {
+    fn print(&mut self, c: char) {
+        if c == '\n' {
+            self.flush();
+        } else {
+            self.text.push(c);
+        }
+    }
+}
+
 pub(crate) struct LoggerUi {}
 
 impl Default for LoggerUi {
@@ -57,13 +82,22 @@ impl LoggerUi {
             .stick_to_bottom(true)
             .show(ui, |ui| {
                 logs_displayed = log_filter_process(level_filter, |level, line| {
-                    let string_format = format!("{}", line);
-
-                    match level {
-                        log::Level::Warn => ui.colored_label(Color32::YELLOW, string_format),
-                        log::Level::Error => ui.colored_label(Color32::RED, string_format),
-                        _ => ui.label(string_format),
+                    let color = match level {
+                        log::Level::Warn => Color32::YELLOW,
+                        log::Level::Error => Color32::RED,
+                        _ => Color32::PLACEHOLDER,
                     };
+
+                    let mut parser = anstyle_parse::Parser::<anstyle_parse::Utf8Parser>::new();
+                    let mut performer = AnstylePerformer {
+                        ui,
+                        text: String::new(),
+                        color,
+                    };
+                    for &byte in line.as_bytes() {
+                        parser.advance(&mut performer, byte);
+                    }
+                    performer.flush();
                 });
             });
         ui.separator();

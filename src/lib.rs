@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 mod ui;
 
-use std::{cell::Cell, cmp, collections::VecDeque, sync::Mutex};
+use std::{cell::Cell, collections::VecDeque, sync::Mutex};
 
 use egui::Color32;
 use log::STATIC_MAX_LEVEL;

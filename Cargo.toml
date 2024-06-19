@@ -17,6 +17,7 @@ log = "0.4"
 egui = { git = "https://github.com/vadixidav/egui.git", branch = "allow-external" }
 regex = "1.10"
 env_logger = { git = "https://github.com/vadixidav/env_logger.git", rev = "7df04b379f4618ff3e0a4298a6102cf59ac7fdd8" }
+anstyle-parse = "0.2.4"
 
 [dev-dependencies]
 eframe = { git = "https://github.com/vadixidav/egui.git", branch = "allow-external" }
