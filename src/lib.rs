@@ -5,7 +5,7 @@ use std::{cell::Cell, collections::VecDeque, sync::Mutex};
 
 use egui::Color32;
 use log::STATIC_MAX_LEVEL;
-use ui::{try_mut_log, LoggerUi};
+use ui::{log_filter_process, try_mut_log, AnstyleAccumulator, LoggerUi};
 
 pub use env_logger;
 
@@ -154,6 +154,18 @@ fn log_ui() -> &'static Mutex<LoggerUi> {
 /// Render the logger UI.
 pub fn ui(ui: &mut egui::Ui) {
     ui_filter(ui, log::LevelFilter::Info);
+}
+
+/// Retrieve logger contents with ASNI escape codes removed.
+pub fn contents(level_filter: log::LevelFilter) -> String {
+    let mut parser = anstyle_parse::Parser::<anstyle_parse::Utf8Parser>::new();
+    let mut performer = AnstyleAccumulator::default();
+    log_filter_process(level_filter, |_, line| {
+        for &byte in line.as_bytes() {
+            parser.advance(&mut performer, byte);
+        }
+    });
+    performer.text
 }
 
 /// Render the logger UI with a log level filter.
