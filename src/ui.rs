@@ -46,11 +46,17 @@ struct AnstylePerformer<'a> {
     color: Color32,
 }
 
+impl<'a> AnstylePerformer<'a> {
+    fn render(&mut self) {
+        self.ui.colored_label(self.color, &self.text);
+        self.text.clear();
+    }
+}
+
 impl<'a> anstyle_parse::Perform for AnstylePerformer<'a> {
     fn print(&mut self, c: char) {
         if c == '\n' {
-            self.ui.colored_label(self.color, &self.text);
-            self.text.clear();
+            self.render();
         } else {
             self.text.push(c);
         }
@@ -99,7 +105,7 @@ impl LoggerUi {
                     for &byte in line.as_bytes() {
                         parser.advance(&mut performer, byte);
                     }
-                    parser.advance(&mut performer, b'\n');
+                    performer.render();
                 });
             });
     }
