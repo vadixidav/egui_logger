@@ -1,4 +1,5 @@
 use egui::Color32;
+use log::LevelFilter;
 
 use crate::{GlobalLog, LOG};
 
@@ -22,6 +23,20 @@ where
     }
 }
 
+/// Runs the given function on all the logs at or below the level filter.
+///
+/// Returns the number of logs processed.
+fn log_filter_process(level_filter: LevelFilter, mut f: impl FnMut(log::Level, &str)) -> usize {
+    let mut logs_processed: usize = 0;
+    try_get_log(|logs| {
+        for (level, line) in logs.iter().filter(|&&(level, _)| level <= level_filter) {
+            logs_processed += 1;
+            f(*level, line)
+        }
+    });
+    logs_processed
+}
+
 pub(crate) struct LoggerUi {}
 
 impl Default for LoggerUi {
@@ -31,13 +46,7 @@ impl Default for LoggerUi {
 }
 
 impl LoggerUi {
-    pub(crate) fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            if ui.button("Clear").clicked() {
-                try_mut_log(|logs| logs.clear());
-            }
-        });
-
+    pub(crate) fn ui(&mut self, ui: &mut egui::Ui, level_filter: log::LevelFilter) {
         ui.separator();
 
         let mut logs_displayed: usize = 0;
@@ -47,19 +56,17 @@ impl LoggerUi {
             .max_height(ui.available_height() - 30.0)
             .stick_to_bottom(true)
             .show(ui, |ui| {
-                try_get_log(|logs| {
-                    logs_displayed = logs.len();
-                    logs.iter().for_each(|(level, string)| {
-                        let string_format = format!("[{}]: {}", level, string);
+                logs_displayed = log_filter_process(level_filter, |level, line| {
+                    let string_format = format!("{}", line);
 
-                        match level {
-                            log::Level::Warn => ui.colored_label(Color32::YELLOW, string_format),
-                            log::Level::Error => ui.colored_label(Color32::RED, string_format),
-                            _ => ui.label(string_format),
-                        };
-                    });
+                    match level {
+                        log::Level::Warn => ui.colored_label(Color32::YELLOW, string_format),
+                        log::Level::Error => ui.colored_label(Color32::RED, string_format),
+                        _ => ui.label(string_format),
+                    };
                 });
             });
+        ui.separator();
 
         ui.horizontal(|ui| {
             ui.label(format!(
@@ -68,7 +75,7 @@ impl LoggerUi {
             ));
             ui.label(format!("Displayed: {}", logs_displayed));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Copy").clicked() {
+                if ui.button("Copy Logs").clicked() {
                     ui.output_mut(|o| {
                         try_get_log(|logs| {
                             let mut out_string = String::new();

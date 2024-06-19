@@ -125,8 +125,13 @@ fn log_ui() -> &'static Mutex<LoggerUi> {
 
 /// Render the logger UI.
 pub fn ui(ui: &mut egui::Ui) {
+    ui_filter(ui, log::LevelFilter::Info);
+}
+
+/// Render the logger UI with a log level filter.
+pub fn ui_filter(ui: &mut egui::Ui, level_filter: log::LevelFilter) {
     if let Ok(ref mut logger_ui) = log_ui().lock() {
-        logger_ui.ui(ui);
+        logger_ui.ui(ui, level_filter);
     } else {
         ui.colored_label(Color32::RED, "Something went wrong loading the log");
     }
