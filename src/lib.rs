@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 mod ui;
 
-use std::{cell::Cell, collections::VecDeque, sync::Mutex};
+use std::{cell::Cell, cmp, collections::VecDeque, sync::Mutex};
 
 use egui::Color32;
 use log::STATIC_MAX_LEVEL;
@@ -82,7 +82,9 @@ impl Builder {
 
     /// Builds and sets the logger as the global logger.
     pub fn init(self) -> Result<(), log::SetLoggerError> {
-        log::set_boxed_logger(Box::new(self.build()))
+        let logger = self.build();
+        let max_level = logger.inner_logger.filter();
+        log::set_boxed_logger(Box::new(logger)).inspect(|_| log::set_max_level(max_level))
     }
 }
 
