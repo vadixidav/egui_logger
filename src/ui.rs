@@ -32,7 +32,11 @@ pub(crate) fn log_filter_process(
 ) -> usize {
     let mut logs_processed: usize = 0;
     try_get_log(|logs| {
-        for (level, line) in logs.iter().filter(|&&(level, _)| level <= level_filter) {
+        for (level, line) in logs
+            .iter()
+            .rev()
+            .filter(|&&(level, _)| level <= level_filter)
+        {
             logs_processed += 1;
             f(*level, line)
         }
