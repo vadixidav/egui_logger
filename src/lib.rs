@@ -7,6 +7,8 @@ use egui::Color32;
 use log::STATIC_MAX_LEVEL;
 use ui::{try_mut_log, LoggerUi};
 
+pub use env_logger;
+
 const LOG_MAX_LEN: usize = 10000;
 
 pub struct Builder {
