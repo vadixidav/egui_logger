@@ -4,6 +4,7 @@ mod ui;
 use std::{cell::Cell, collections::VecDeque, sync::Mutex};
 
 use egui::Color32;
+use log::STATIC_MAX_LEVEL;
 use ui::{try_mut_log, LoggerUi};
 
 const LOG_MAX_LEN: usize = 10000;
@@ -12,6 +13,7 @@ pub struct Builder {
     inner_builder: env_logger::Builder,
     log_to_env_logger: bool,
     log_to_egui_ui: bool,
+    ui_level_filter: log::LevelFilter,
 }
 
 impl Builder {
@@ -48,17 +50,31 @@ impl Builder {
         }
     }
 
+    /// Limits logs specifically going to the UI, but not which are logged with [`env_logger`].
+    ///
+    /// This is useful since there is a limit on how many logs are recorded for the UI.
+    ///
+    /// If you don't call this, only [`env_logger`]'s filter will be used.
+    pub fn ui_level_filter(self, ui_level_filter: log::LevelFilter) -> Self {
+        Self {
+            ui_level_filter,
+            ..self
+        }
+    }
+
     /// Builds the logger.
     pub fn build(self) -> Logger {
         let Self {
             mut inner_builder,
             log_to_env_logger,
             log_to_egui_ui,
+            ui_level_filter,
         } = self;
         Logger {
             inner_logger: inner_builder.build(),
             log_to_env_logger,
             log_to_egui_ui,
+            ui_level_filter,
         }
     }
 }
@@ -69,6 +85,7 @@ impl Default for Builder {
             inner_builder: Default::default(),
             log_to_env_logger: true,
             log_to_egui_ui: true,
+            ui_level_filter: STATIC_MAX_LEVEL,
         }
     }
 }
@@ -78,6 +95,7 @@ pub struct Logger {
     inner_logger: env_logger::Logger,
     log_to_env_logger: bool,
     log_to_egui_ui: bool,
+    ui_level_filter: log::LevelFilter,
 }
 
 impl log::Log for Logger {
@@ -87,7 +105,7 @@ impl log::Log for Logger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            if self.log_to_egui_ui {
+            if self.log_to_egui_ui && record.level() <= self.ui_level_filter {
                 thread_local! {
                     pub static LOG_VEC: Cell<Vec<u8>> = Cell::new(Vec::new());
                 }
