@@ -127,6 +127,7 @@ impl log::Log for Logger {
                     logs.push_front((record.level(), log_str));
                     logs.truncate(LOG_MAX_LEN);
                 });
+                log_vec.clear();
                 LOG_VEC.set(log_vec);
             } else if self.log_to_env_logger {
                 self.inner_logger.log(record);
