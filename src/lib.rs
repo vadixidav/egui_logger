@@ -87,34 +87,24 @@ impl log::Log for Logger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            if self.log_to_egui_ui && self.log_to_env_logger {
-                thread_local! {
-                    pub static LOG_VEC: Cell<Vec<u8>> = Cell::new(Vec::new());
-                }
-                let mut log_vec = LOG_VEC.take();
-                self.inner_logger.dual_log(&mut log_vec, record);
-                let log_str = String::from_utf8_lossy(&log_vec).into_owned();
-                try_mut_log(|logs| {
-                    logs.push_front((record.level(), log_str));
-                    logs.truncate(LOG_MAX_LEN);
-                });
-                LOG_VEC.set(log_vec);
-            }
-            if self.log_to_env_logger {
-                self.inner_logger.log(record);
-            }
             if self.log_to_egui_ui {
                 thread_local! {
                     pub static LOG_VEC: Cell<Vec<u8>> = Cell::new(Vec::new());
                 }
                 let mut log_vec = LOG_VEC.take();
-                self.inner_logger.write_log(&mut log_vec, record);
+                if self.log_to_env_logger {
+                    self.inner_logger.dual_log(&mut log_vec, record);
+                } else {
+                    self.inner_logger.write_log(&mut log_vec, record);
+                }
                 let log_str = String::from_utf8_lossy(&log_vec).into_owned();
                 try_mut_log(|logs| {
                     logs.push_front((record.level(), log_str));
                     logs.truncate(LOG_MAX_LEN);
                 });
                 LOG_VEC.set(log_vec);
+            } else if self.log_to_env_logger {
+                self.inner_logger.log(record);
             }
         }
     }
