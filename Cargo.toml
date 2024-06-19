@@ -16,8 +16,8 @@ include = ["src/*.rs", "Cargo.toml", "LICENSE"]
 log = "0.4"
 egui = { git = "https://github.com/vadixidav/egui.git", branch = "allow-external" }
 regex = "1.10"
+env_logger = { git = "https://github.com/vadixidav/env_logger.git", rev = "7df04b379f4618ff3e0a4298a6102cf59ac7fdd8" }
 
 [dev-dependencies]
 eframe = { git = "https://github.com/vadixidav/egui.git", branch = "allow-external" }
 multi_log = "0.1"
-env_logger = "0.11"

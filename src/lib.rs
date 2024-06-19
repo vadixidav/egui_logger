@@ -1,115 +1,140 @@
 #![doc = include_str!("../README.md")]
 mod ui;
 
-use std::sync::Mutex;
+use std::{cell::Cell, collections::VecDeque, sync::Mutex};
 
 use egui::Color32;
-use log::SetLoggerError;
 use ui::{try_mut_log, LoggerUi};
 
-const LEVELS: [log::Level; log::Level::Trace as usize] = [
-    log::Level::Error,
-    log::Level::Warn,
-    log::Level::Info,
-    log::Level::Debug,
-    log::Level::Trace,
-];
+const LOG_MAX_LEN: usize = 10000;
 
-/// The logger for egui
-/// Don't use this directly, use [`builder()`] instead.
-pub struct EguiLogger;
-
-/// The builder for the logger.
-/// You should use [`builder()`] to get an instance of this.
 pub struct Builder {
-    max_level: log::LevelFilter,
+    inner_builder: env_logger::Builder,
+    log_to_env_logger: bool,
+    log_to_egui_ui: bool,
+}
+
+impl Builder {
+    /// Use this to set settings on the [`env_logger::Builder`].
+    ///
+    /// Note that [`env_logger::Builder::format`] will not work because this crate overrides it.
+    pub fn env_logger(
+        mut self,
+        f: impl FnOnce(&mut env_logger::Builder) -> &mut env_logger::Builder,
+    ) -> Self {
+        f(&mut self.inner_builder);
+        self
+    }
+
+    /// Determines whether to log to [`env_logger`] or not.
+    ///
+    /// This wil output to stdout or stderr based on your settings.
+    ///
+    /// Default: `true`
+    pub fn log_to_env_logger(self, log_to_env_logger: bool) -> Self {
+        Self {
+            log_to_env_logger,
+            ..self
+        }
+    }
+
+    /// Determines whether to log to the [`egui`] widget.
+    ///
+    /// Default: `true`
+    pub fn log_to_egui_ui(self, log_to_egui_ui: bool) -> Self {
+        Self {
+            log_to_egui_ui,
+            ..self
+        }
+    }
+
+    /// Builds the logger.
+    pub fn build(self) -> Logger {
+        let Self {
+            mut inner_builder,
+            log_to_env_logger,
+            log_to_egui_ui,
+        } = self;
+        Logger {
+            inner_logger: inner_builder.build(),
+            log_to_env_logger,
+            log_to_egui_ui,
+        }
+    }
 }
 
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            max_level: log::LevelFilter::Debug,
+            inner_builder: Default::default(),
+            log_to_env_logger: true,
+            log_to_egui_ui: true,
         }
     }
 }
 
-impl Builder {
-    /// Returns the Logger.
-    /// Useful if you want to add it to a multi-logger.
-    /// See [here](https://github.com/RegenJacob/egui_logger/blob/main/examples/multi_log.rs) for an example.
-    pub fn build(self) -> EguiLogger {
-        EguiLogger
-    }
-
-    /// Sets the max level for the logger
-    /// this only has an effect when calling [`init()`].
-    ///
-    /// Defaults to [Debug](`log::LevelFilter::Debug`).
-    pub fn max_level(mut self, max_level: log::LevelFilter) -> Self {
-        self.max_level = max_level;
-        self
-    }
-
-    /// Initializes the global logger.
-    /// This should be called very early in the program.
-    ///
-    /// The max level is the [max_level](Self::max_level) field.
-    pub fn init(self) -> Result<(), SetLoggerError> {
-        log::set_logger(&EguiLogger).map(|()| log::set_max_level(self.max_level))
-    }
+/// The egui logger.
+pub struct Logger {
+    inner_logger: env_logger::Logger,
+    log_to_env_logger: bool,
+    log_to_egui_ui: bool,
 }
 
-impl log::Log for EguiLogger {
+impl log::Log for Logger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::STATIC_MAX_LEVEL
+        self.inner_logger.enabled(metadata)
     }
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            try_mut_log(|logs| logs.push((record.level(), record.args().to_string())));
+            if self.log_to_egui_ui && self.log_to_env_logger {
+                thread_local! {
+                    pub static LOG_VEC: Cell<Vec<u8>> = Cell::new(Vec::new());
+                }
+                let mut log_vec = LOG_VEC.take();
+                self.inner_logger.dual_log(&mut log_vec, record);
+                let log_str = String::from_utf8_lossy(&log_vec).into_owned();
+                try_mut_log(|logs| {
+                    logs.push_front((record.level(), log_str));
+                    logs.truncate(LOG_MAX_LEN);
+                });
+                LOG_VEC.set(log_vec);
+            }
+            if self.log_to_env_logger {
+                self.inner_logger.log(record);
+            }
+            if self.log_to_egui_ui {
+                thread_local! {
+                    pub static LOG_VEC: Cell<Vec<u8>> = Cell::new(Vec::new());
+                }
+                let mut log_vec = LOG_VEC.take();
+                self.inner_logger.write_log(&mut log_vec, record);
+                let log_str = String::from_utf8_lossy(&log_vec).into_owned();
+                try_mut_log(|logs| {
+                    logs.push_front((record.level(), log_str));
+                    logs.truncate(LOG_MAX_LEN);
+                });
+                LOG_VEC.set(log_vec);
+            }
         }
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        self.inner_logger.flush();
+    }
 }
 
-/// Initializes the global logger.
-/// Should be called very early in the program.
-/// Defaults to max level Debug.
-///
-/// This is now deprecated, use [`builder()`] instead.
-#[deprecated(
-    since = "0.5.0",
-    note = "Please use `egui_logger::builder().init()` instead"
-)]
-pub fn init() -> Result<(), SetLoggerError> {
-    builder().init()
-}
+pub(crate) type GlobalLog = VecDeque<(log::Level, String)>;
 
-/// Same as [`init()`] accepts a [`log::LevelFilter`] to set the max level
-/// use [`Trace`](log::LevelFilter::Trace) with caution
-///
-/// This is now deprecated, use [`builder()`] instead.
-#[deprecated(
-    since = "0.5.0",
-    note = "Please use `egui_logger::builder().max_level(max_level).init()` instead"
-)]
-pub fn init_with_max_level(max_level: log::LevelFilter) -> Result<(), SetLoggerError> {
-    builder().max_level(max_level).init()
-}
-
-pub(crate) type GlobalLog = Vec<(log::Level, String)>;
-
-static LOG: Mutex<GlobalLog> = Mutex::new(Vec::new());
+static LOG: Mutex<GlobalLog> = Mutex::new(VecDeque::new());
 
 fn log_ui() -> &'static Mutex<LoggerUi> {
     static LOGGER_UI: std::sync::OnceLock<Mutex<LoggerUi>> = std::sync::OnceLock::new();
     LOGGER_UI.get_or_init(Default::default)
 }
 
-/// Draws the logger ui
-/// has to be called after [`init()`];
-pub fn logger_ui(ui: &mut egui::Ui) {
+/// Render the logger UI.
+pub fn ui(ui: &mut egui::Ui) {
     if let Ok(ref mut logger_ui) = log_ui().lock() {
         logger_ui.ui(ui);
     } else {
@@ -117,10 +142,9 @@ pub fn logger_ui(ui: &mut egui::Ui) {
     }
 }
 
-/// Clears the logger UI
-/// has to be called after [`init()`];
-pub fn clear_ui() {
-    try_mut_log(Vec::clear);
+/// Clear the logs.
+pub fn clear() {
+    try_mut_log(VecDeque::clear);
 }
 
 /**
@@ -144,7 +168,5 @@ fn main() -> {
 ```
 */
 pub fn builder() -> Builder {
-    Builder {
-        ..Default::default()
-    }
+    Default::default()
 }
