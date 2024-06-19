@@ -169,6 +169,7 @@ pub fn contents_filter(level_filter: log::LevelFilter) -> String {
         for &byte in line.as_bytes() {
             parser.advance(&mut performer, byte);
         }
+        parser.advance(&mut performer, b'\n');
     });
     performer.text
 }
