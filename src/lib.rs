@@ -91,7 +91,7 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            inner_builder: Default::default(),
+            inner_builder: env_logger::Builder::from_default_env(),
             log_to_env_logger: true,
             log_to_egui_ui: true,
             ui_level_filter: STATIC_MAX_LEVEL,
